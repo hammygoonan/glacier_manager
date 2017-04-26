@@ -6,6 +6,7 @@
     A Command Line Interface for intialising Glacier jobs and downloading output.
 """
 
+import json
 import os
 import uuid
 import click
@@ -67,7 +68,7 @@ def upload(description, filename):
 
 @glacier.command()
 @click.option('--archive_id', prompt='Archive ID')
-def init_job(archive_id):
+def archive_retrieval(archive_id):
     """Initialise the retreval of an archive."""
     client = get_client()
     response = client.initiate_job(
@@ -75,6 +76,20 @@ def init_job(archive_id):
         jobParameters={
             'Type': 'archive-retrieval',
             'ArchiveId': archive_id
+        }
+    )
+    click.echo('Your job is being retreved.')
+    click.echo('Job Id: ' + response['jobId'])
+
+
+@glacier.command()
+def inventory_retrieval():
+    """Initialise the retreval of an inventory."""
+    client = get_client()
+    response = client.initiate_job(
+        vaultName=GLACIER_VAULT,
+        jobParameters={
+            'Type': 'inventory-retrieval'
         }
     )
     click.echo('Your job is being retreved.')
@@ -120,6 +135,29 @@ def download(job_id):
                     f.write(output['body'].read())
                     bar.update(position)
         click.echo('Finshed Downloading')
+    else:
+        click.echo('Status: ' + job_description['StatusCode'])
+        pprint.pprint(job_description)
+
+
+@glacier.command()
+@click.option('--job_id', prompt='Job ID')
+def get_inventory(job_id):
+    """Download inventory output."""
+    client = get_client()
+    job_description = client.describe_job(
+        vaultName=GLACIER_VAULT,
+        jobId=job_id
+    )
+    if job_description['StatusCode'] == 'Succeeded':
+        click.echo('Retrieving Inventory')
+        with open('inventory.txt', 'w') as f:
+            output = client.get_job_output(
+                vaultName=GLACIER_VAULT, jobId=job_id
+            )
+            json_output = json.loads(output['body'].read().decode('utf-8'))
+            pprint.pprint(json_output, f)
+        click.echo('Finshed')
     else:
         click.echo('Status: ' + job_description['StatusCode'])
         pprint.pprint(job_description)
